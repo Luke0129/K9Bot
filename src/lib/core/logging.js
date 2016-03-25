@@ -25,13 +25,22 @@ class logger {
      * @return      {void}
      */
     constructor() {
+        let fs      = require('fs');
+        let path    = require('path');
         let winston = require('winston');
+        let moment  = require('moment');
+        let utils   = require(path.join(GLOBAL.k9path + '/lib/core/utils.js'));
+
+        // Ensure the log directory exists
+        if(! utils.fileExists(path.join(GLOBAL.k9path + '/../logs'), true)) {
+            fs.mkdirSync(path.join(GLOBAL.k9path + '/../logs'));
+        }
 
         // Setup the transport for console (notification) logging
         this._c = new winston.Logger({
             transports: [
                 new winston.transports.Console({
-                    colorize: true,
+                    colorize: true
                 })
             ]
         });
@@ -44,23 +53,41 @@ class logger {
                     colorize: true,
                 }),
                 new winston.transports.File({
-                    filename: 'logs/k9.log',
+                    filename: 'logs/k9-' + moment().format('YYYY-MM-DD') + '.log',
                     json: false,
-                    maxsize: 102400000,
-                    zippedArchive: true
+                    maxsize: 102400000
+                })
+            ]
+        });
+
+        // Setup the transport for debug logging
+        this._d = new winston.Logger({
+            transports: [
+                new winston.transports.File({
+                    filename: 'logs/debug-' + moment().format('YYYY-MM-DD') + '.log',
+                    json: false,
+                    maxsize: 102400000
                 })
             ]
         });
 
         // Error handler
         process.on('uncaughtException', (err) => {
-            this._l.log('error', err.message);
-            process.exit(0);
+            this._c.log('error', err.message);
+            this._d.log('error', err);
+
+            setTimeout(function() {
+                process.exit(1);
+            }, 300);
         });
 
-        process.on('uncaughtException', (err) => {
-            this._l.log('error', err.message);
-            process.exit(0);
+        process.on('unhandledRejection', (err) => {
+            this._c.log('error', err.message);
+            this._d.log('error', err);
+
+            setTimeout(function() {
+                process.exit(1);
+            }, 300);
         });
     }
 

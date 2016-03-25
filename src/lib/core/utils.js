@@ -29,20 +29,41 @@ function parseInviteCode(invite) {
 
 
 /**
- * Get the server name from an invite
+ * Join a server by invite
  *
- * @since       0.1.0
- * @return      {string} name The server name
+ * @since       0.0.3
+ * @access      public
+ * @param       {string} The invite code for the channel to join
+ * @return      {void}
+ * @todo        Don't forcibly re-accept every time!
  */
-function getServerName() {
-    let config    = require(GLOBAL.k9path + '/lib/core/config.js');
-    let server_id = config.get('last_server_id');
-    let server    = GLOBAL.bot.Guilds.get(server_id);
+function connect(invite) {
+    let config = require(GLOBAL.k9path + '/lib/core/config.js');
+    let logger = require(GLOBAL.k9path + '/lib/core/logging.js');
+    let utils  = require(GLOBAL.k9path + '/lib/core/utils.js');
 
-    if(server && server.name) {
-        return server.name;
+    if(! invite) {
+        invite = config.get('invite');
+    }
+
+    // Bail if no invite is set
+    if(! invite || invite === 'The invite URL for the server to connect to') {
+        logger.notify('error', 'Please create or edit the config/auth.json file and specify an invite URL!');
+        process.exit(0);
+    }
+
+    let code = utils.parseInviteCode(invite);
+
+    if(code === null) {
+        logger.notify('error', 'The specified invite link is invalid!');
+        process.exit(0);
     } else {
-        return null;
+        GLOBAL.bot.Invites.accept(code).then(function(res) {
+            logger.notify('info', 'Connected to ' + res.guild.name);
+        }, function() {
+            logger.notify('warn', 'The invite link was not accepted.');
+            return;
+        });
     }
 }
 
@@ -61,8 +82,67 @@ function isBotMessage(channel_id) {
 }
 
 
+/**
+ * Check if a file exists
+ *
+ * @since       0.1.4
+ * @param       {string} filepath The path to check
+ * @param       {bool} isdir True to treat as directory
+ * @return      {bool} exists True if exists, false otherwise
+ */
+function fileExists(filepath, isdir) {
+    let fs     = require('fs');
+    let exists = false;
+
+    if(filepath) {
+        if(isdir) {
+            try {
+                exists = fs.statSync(filepath).isDirectory();
+            } catch (e) {}
+        } else {
+            try {
+                exists = fs.statSync(filepath).isFile();
+            } catch (e) {}
+        }
+    }
+
+    return exists;
+}
+
+
+/**
+ * Post message to channel
+ *
+ * @since       0.1.3
+ * @access      public
+ * @param       {object} res The message resource
+ * @param       {string} message The message to post
+ * @return      {void}
+ */
+function say(res, message) {
+    res.message.channel.sendTyping(res.message.channel.sendMessage(message));
+}
+
+
+/**
+ * Post message to user
+ *
+ * @since       0.1.3
+ * @access      public
+ * @param       {object} res The message resource
+ * @param       {string} message The message to post
+ * @return      {void}
+ */
+function reply(res, message) {
+    res.message.channel.sendTyping(res.message.reply(message));
+}
+
+
 module.exports = {
     parseInviteCode: parseInviteCode,
-    getServerName:   getServerName,
-    isBotMessage:    isBotMessage
+    connect:         connect,
+    isBotMessage:    isBotMessage,
+    fileExists:      fileExists,
+    say:             say,
+    reply:           reply
 };
